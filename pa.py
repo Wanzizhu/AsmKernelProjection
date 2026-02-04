@@ -63,11 +63,9 @@ def print_performance_table(qtile, kv_tile, co_exe=False, is_packed=False):
     if co_exe:
         is_packed = False
         
-    # 计算softmax和gemm的时间
     softmax_metrics = softmax(qtile, kv_tile, is_packed)
     gemm_cycles = gemm(qtile, kv_tile)
     
-    # 计算softmax总时间
     softmax_total = sum(softmax_metrics.values())
     
     # compute total cycles
@@ -96,12 +94,18 @@ def print_performance_table(qtile, kv_tile, co_exe=False, is_packed=False):
     
     # total cycles
     print(f"{'Total Cycles':<25} {tot_cycles:<12.2f}")
-    print(f"{'Total Cycles for Coexecution':<25} {tot_cycles_coexe:<12.2f}")
+    if co_exe:
+        print(f"{'Total Cycles for Coexecution':<25} {tot_cycles_coexe:<12.2f}")
     
     print("=" * 60)
 
 
 if __name__ == "__main__":
-    # 示例：使用你提供的参数
-    print_performance_table(48, 64, co_exe=False, is_packed=False)
+    print_performance_table(48, 64, co_exe=False, is_packed=True)
+    print_performance_table(48, 32, co_exe=False, is_packed=True)
     print_performance_table(48, 32, co_exe=True)
+    
+    # print_performance_table(64, 64, co_exe=False, is_packed=True)
+    # print_performance_table(64, 16, co_exe=True)
+    
+    
