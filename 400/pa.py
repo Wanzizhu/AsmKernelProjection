@@ -5,11 +5,13 @@ from typing import Dict, Iterable, Optional
 
 # ---------- FP8xFP8 GEMM tile model (matches the screenshot table) ----------
 
-MMA_THROUGHPUT = 16 * 16 * 32 * 2/ 16
+MMA_THROUGHPUT = 16 * 16 * 128 * 2 / 8
 HEAD_SIZE = 128
-WARP_SIZE = 64
-ISSUE_CYCLES = 4
-EXP_ISSUE_CYCLES = ISSUE_CYCLES * 4
+WARP_SIZE = 32
+VOP_RATE = 1
+DEP_VOP_RATE = 5
+TRANS_RATE = 2
+DEP_TRANS_RATE = 8
 
 
 
@@ -21,34 +23,37 @@ def gemm(qtile, kv_tile):
 def softmax(qtile, kv_tile, is_packed: bool = False):
     s_elems = (qtile * kv_tile) / WARP_SIZE
     
-        #dequant
-    dequant = (s_elems / 2 if is_packed else s_elems) * ISSUE_CYCLES
+    #dequant
+    dequant = (s_elems / 2 if is_packed else s_elems) * VOP_RATE
     
     # intra_max: max3
-    intra_max = (s_elems / 2) * ISSUE_CYCLES
+    intra_max = (s_elems / 2) * VOP_RATE
     
-    # inter_max: ds_permute + ds_write + ds_read + max3
-    inter_max = 250 + 84 + 112 + (qtile / 16) * 4 / 2
+    # inter_max: permlane
+    inter_max = (4 * qtile / 16) * VOP_RATE
     
     # s = exp((s - max) * scale), fma + exp
     fma = s_elems / 2 if is_packed else s_elems 
     exp = s_elems
-    softmax_fma_exp = fma * ISSUE_CYCLES + exp * EXP_ISSUE_CYCLES
+    softmax_fma_exp = fma * VOP_RATE + exp * TRANS_RATE
     
     # get sum
-    softmax_sum = (s_elems / 2 if is_packed else s_elems)* ISSUE_CYCLES
+    softmax_sum = (s_elems / 2 if is_packed else s_elems)* VOP_RATE
     
     # quant s
     quant_scale = s_elems / 2 if is_packed else s_elems 
     cvt = s_elems / 2 if is_packed else s_elems 
-    s_quant = quant_scale * ISSUE_CYCLES + cvt * ISSUE_CYCLES * 2
+    s_quant = quant_scale * VOP_RATE + cvt * VOP_RATE
     
-    # reshape s: ds_write_b32 + ds_read_b128
-    reshape_s = s_elems / 4 * 8 + 100 + s_elems / 4 * 32
+    
+    # recompute_output, r  and 
+    out_elems = (qtile * HEAD_SIZE) / WARP_SIZE
     
     # recompute_output
-    out_elems = (qtile * HEAD_SIZE / 4) / WARP_SIZE
-    recompute_output = (out_elems / 2 if is_packed else out_elems) * 2 * ISSUE_CYCLES
+    # rall *= detla_max
+    # rall = r * scale_s + rall
+    out_elems = (qtile * HEAD_SIZE) / WARP_SIZE
+    recompute_output = (out_elems / 2 if is_packed else out_elems) * 2 * VOP_RATE 
     
     return {
         "dequant": dequant,
@@ -57,7 +62,6 @@ def softmax(qtile, kv_tile, is_packed: bool = False):
         "softmax_fma_exp": softmax_fma_exp,
         "softmax_sum": softmax_sum,
         "s_quant": s_quant,
-        "reshape_s": reshape_s,
         "recompute_output": recompute_output,
     }
 
@@ -106,9 +110,11 @@ def print_performance_table(qtile, kv_tile, co_exe=False, is_packed=False):
 
 
 if __name__ == "__main__":
-    print_performance_table(48, 64, co_exe=False, is_packed=True)
-    print_performance_table(48, 32, co_exe=False, is_packed=True)
-    print_performance_table(48, 32, co_exe=True)
+    print_performance_table(16, 128, co_exe=False, is_packed=True)
+    print_performance_table(32, 128, co_exe=False, is_packed=True)
+    print_performance_table(48, 128, co_exe=False, is_packed=True)
+    print_performance_table(64, 128, co_exe=False, is_packed=True)
+
     
     # print_performance_table(64, 64, co_exe=False, is_packed=True)
     # print_performance_table(64, 16, co_exe=True)
