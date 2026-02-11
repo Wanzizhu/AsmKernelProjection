@@ -116,7 +116,4 @@ if __name__ == "__main__":
     print_performance_table(64, 128, co_exe=False, is_packed=True)
 
     
-    # print_performance_table(64, 64, co_exe=False, is_packed=True)
-    # print_performance_table(64, 16, co_exe=True)
-    
     

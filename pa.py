@@ -21,7 +21,7 @@ def gemm(qtile, kv_tile):
 def softmax(qtile, kv_tile, is_packed: bool = False):
     s_elems = (qtile * kv_tile) / WARP_SIZE
     
-        #dequant
+    #dequant
     dequant = (s_elems / 2 if is_packed else s_elems) * ISSUE_CYCLES
     
     # intra_max: max3
